@@ -43,3 +43,6 @@ Affected    : true
 ...
 
 ```
+
+## Blog
+https://blog.leitwolf.io
