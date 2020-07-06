@@ -16,7 +16,10 @@ Helps to verify which PowerApps and Flows would be affected by a DLP policy. The
   Add-PowerAppsAccount
   
   $defaultEnv = Get-AdminPowerAppEnvironment | ? { $_.IsDefault -eq $true }
-  $policy = GetDlpPolicy -PolicyName 9029b241-055a-4242-8262-5700504c6171#
+  # import policy  
+  $policy = Import-DlpPolicy -path ./default-policy.json
+  # or load online DLP policy
+  # $policy = GetDlpPolicy -PolicyName 9029b241-055a-4242-8262-5700504c6171#
 
   Get-PowerAppsAffectedByPolicy -Policy $policy -EnvironmentName  $defaultEnv.EnvironmentName
 
@@ -147,13 +150,12 @@ function global:Get-PowerAppsAffectedByPolicy {
     }
 
 
-    $flows = Get-Flow -EnvironmentName $environmentName
+    $flows = Get-AdminFlow -EnvironmentName $environmentName | ForEach-Object { get-flow -FlowName $_.FlowName }
     $flows | Add-Member -MemberType AliasProperty -Name AppName -Value FlowName
 
     Add-AffectedItems $flows "Flow"
 
-    # HACK: when I filter the environent directly not all apps will be returned. Result can vary and props can vary with different params => Cmdlets are in peview
-    $apps = Get-PowerApp | Where-Object { $_.EnvironmentName -eq $environmentName } 
+    $apps = Get-AdminPowerApp $_.EnvironmentName -eq $environmentName | Get-PowerApp
     Add-AffectedItems $apps "App"
 
     # Write-Output affectedItems | Format-Table
