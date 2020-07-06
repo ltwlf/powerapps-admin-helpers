@@ -93,48 +93,55 @@ function global:Get-PowerAppsAffectedByPolicy {
     function Add-AffectedItems($items, $appType) {
         $items | ForEach-Object {
             $item = $_
-            $business = 0
-            $nonBusiness = 0
-            $blocked = 0
+            $businessAffectedCount = 0
+            $businessAffectedConnectors = [System.Collections.ArrayList]@()
+            $nonBusinessAffectedCount = 0
+            $nonBusinessAffectedConnectors = [System.Collections.ArrayList]@()
+            $blockAffectedCount = 0
+            $blockedAffectedConnectors = [System.Collections.ArrayList]@()
             $groupCount = 0
     
             $_.Internal.properties.connectionReferences.PSObject.Properties `
             | Select-Object -ExpandProperty value `
-            | Select-Object -ExpandProperty id `
-            | ForEach-Object { $_.ToLower() } `
             | ForEach-Object { 
-            
-                if ($businessConnectors.Contains($_)) {
-                    $business += 1
+                if ($businessConnectors.Contains($_.id.ToLower())) {
+                    $businessAffectedCount += 1
+                    [void]$businessAffectedConnectors.Add($_)
                 }
-                if ($nonBusinessConnectors.Contains($_)) {
-                    $nonBusiness += 1
+                if ($nonBusinessConnectors.Contains($_.id.ToLower())) {
+                    $nonBusinessAffectedCount += 1
+                    [void]$nonBusinessAffectedConnectors.Add($_)
                 }
-                if ($blockedConnectors.Contains($_)) {
-                    $blocked += 1
+                if ($blockedConnectors.Contains($_.id.ToLower())) {
+                    $blockAffectedCount += 1
+                    [void]$blockedAffectedConnectors.Add($_)
                 }
             }
-            if ($business -gt 0) {
+            if ($businessAffectedCount -gt 0) {
                 $groupCount++
             }
-            if ($nonBusiness -gt 0) {
+            if ($nonBusinessAffectedCount -gt 0) {
                 $groupCount++
             }
-            if ($blocked -gt 0) {
+            if ($blockAffectedCount -gt 0) {
                 $groupCount++
             }
+
             $props = $_.Internal.properties
             $appItem = $item | Select-Object `
                 DisplayName,
-            AppName,
-            @{ n = 'AppType'; e = { $appType } }, 
-            @{ n = 'Owner'; e = { if ($null -ne $props.owner) { $props.owner.Email } else { Get-AzureADUser -ObjectId $props.creator.userId | Select-Object -ExpandProperty Mail } } }, 
-            @{ n = 'Business'; e = { $business } }, 
-            @{ n = 'NonBusiness'; e = { $nonBusiness } }, 
-            @{ n = 'Blocked'; e = { $blocked } }, 
-            @{ n = 'Affected'; e = { 
-                    if ($groupCount -gt 1 -or $blocked -gt 0) { $true } else { $false } } 
-            }
+                AppName,
+                @{ n = 'AppType'; e = { $appType } }, 
+                @{ n = 'Owner'; e = { if ($null -ne $props.owner) { $props.owner.Email } else { Get-AzureADUser -ObjectId $props.creator.userId | Select-Object -ExpandProperty Mail } } }, 
+                @{ n = 'BusinessCount'; e = { $businessAffectedCount } }, 
+                @{ n = 'BusinessConnectors'; e = { ( $businessAffectedConnectors | Select-Object -ExpandProperty displayName ) -join ','  } }, 
+                @{ n = 'NonBusinessCount'; e = { $nonBusinessAffectedCount } }, 
+                @{ n = 'NonBusinessConnectors'; e = { ( $nonBusinessAffectedConnectors | Select-Object -ExpandProperty displayName ) -join ','  } }, 
+                @{ n = 'BlockedCount'; e = { $blockAffectedCount } }, 
+                @{ n = 'BlockedConnectors'; e = { ( $blockedAffectedConnectors | Select-Object -ExpandProperty displayName ) -join ',' } }, 
+                @{ n = 'Affected'; e = { 
+                        if ($groupCount -gt 1 -or $blockAffectedCount -gt 0) { $true } else { $false } } 
+                }
             [void]$affectedItems.Add($appItem)
         }
     }

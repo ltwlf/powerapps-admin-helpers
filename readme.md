@@ -23,23 +23,30 @@ Get-PowerAppsAffectedByPolicy -Policy $policy -EnvironmentName  $defaultEnv.Envi
 ```
 Output:
 ```
-DisplayName : My Flow 1
-AppName     : 08df3012-4477-4d0d-85eb-662e326540b5
-AppType     : Flow
-Owner       : cg@hololux.com
-Business    : 2
-NonBusiness : 0
-Blocked     : 0
-Affected    : False
+DisplayName           : Flow 123
+AppName               : a5c34385-ca1d-4c03-9d7a-5c9b71ea8ec0
+AppType               : App
+Owner                 : chris@xyz.com
+BusinessCount         : 0
+BusinessConnectors    :
+NonBusinessCount      : 0
+NonBusinessConnectors :
+BlockedCount          : 0
+BlockedConnectors     :
+Affected              : False
 
-DisplayName : My Canvas App 2
-AppName     : 227d1609-6e11-436e-aad0-aa18f8s303ef
-AppType     : App
-Owner       : cg@hololux.com
-Business    : 1
-NonBusiness : 0
-Blocked     : 1
-Affected    : true
+DisplayName           : Canvas App 77
+AppName               : bfa50eb2-ce03-4700-930d-e4e234c72f6f
+AppType               : App
+Owner                 : lars@xyz.com
+BusinessCount         : 1
+BusinessConnectors    : SharePoint
+NonBusinessCount      : 2
+NonBusinessConnectors : Twitter, LinkedIn
+BlockedCount          : 0
+BlockedConnectors     :
+Affected              : True
+
 ...
 
 ```
