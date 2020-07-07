@@ -5,11 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "PowerShell: Launch Current File",
+            "name": "PowerShell: Debug",
             "type": "PowerShell",
             "request": "launch",
-            "script": "${file}",
-            "cwd": "${file}"
+            "script": "${workspaceFolder}\\test.ps1",
         }
     ]
 }

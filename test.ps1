@@ -1,14 +1,15 @@
 try { 
     $null = Get-AzureADTenantDetail
 } 
-catch [Microsoft.Open.Azure.AD.CommonLibrary.AadNeedAuthenticationException] { 
+catch { 
     Connect-AzureAD
 }
 
-. ./Get-PowerAppsAffectedByPolicy -Policy $policy -EnvironmentName  $defaultEnv.EnvironmentName
+. ./Ltwlf.PowerApps.ps1
 
 $defaultEnv = Get-AdminPowerAppEnvironment | Where-Object { $_.IsDefault -eq $true }
 
-$policy = Import-DlpPolicy -path .\default-policy.json
+$policy = Import-DlpPolicy -path "default-policy.json"
+$policy = Add-PowerAppsCustomConnectorsToBlocked -policy $policy
 
 Get-PowerAppsAffectedByPolicy -Policy $policy -EnvironmentName  $defaultEnv.EnvironmentName

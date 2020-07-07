@@ -25,18 +25,19 @@ Helps to verify which PowerApps and Flows would be affected by a DLP policy. The
 
 #>
 
+
 if (!(Get-Module -Name "AzureAD")) {
-    Install-Module -Name AzureAD -ErrorAction Continue
+    Install-Module -Name AzureAD -Scope CurrentUser
 }
-# Connect-AzureAD
 if (!(Get-Module -Name "Microsoft.PowerApps.Administration.PowerShell")) {
-    Install-Module -Name Microsoft.PowerApps.Administration.PowerShell
+    Install-Module -Name Microsoft.PowerApps.Administration.PowerShell -Scope CurrentUser
 }
 if (!(Get-Module -Name "Microsoft.PowerApps.PowerShell")) {
-    Install-Module -Name Microsoft.PowerApps.PowerShell -AllowClobber
+    Install-Module -Name Microsoft.PowerApps.PowerShell -AllowClobber -Scope CurrentUser
 }
 
-function global:Export-DlpPolicy{
+
+function global:Export-DlpPolicy {
     param (
         [Parameter(Mandatory = $true)][String]$policyName,
         [Parameter(Mandatory = $false)][String]$path = $policyName + ".json"
@@ -47,7 +48,7 @@ function global:Export-DlpPolicy{
     $policy | ConvertTo-Json -Depth 10 | Out-File -FilePath $path
 }
 
-function global:Import-DlpPolicy{
+function global:Import-DlpPolicy {
     param (
         [Parameter(Mandatory = $true)][String]$path
     )
@@ -78,21 +79,18 @@ function global:Get-PowerAppsAffectedByPolicy {
     try { 
         $null = Get-AzureADTenantDetail
     } 
-    catch [Microsoft.Open.Azure.AD.CommonLibrary.AadNeedAuthenticationException] { 
+    catch { 
         Write-Host "You're not connected to AzureAD";  
-        Write-Host "Make sure you have AzureAD mudule available on this system then use Connect-AzureAD to establish connection";  
-        exit;
+        Connect-AzureAD
     }
 
     # get custom connectors
 
-    $businessConnectors = $policy.connectorGroups[0].connectors | Select-Object -ExpandProperty id | ForEach-Object { $_.ToLower() }
-    $nonBusinessConnectors = $policy.connectorGroups[1].connectors  | Select-Object -ExpandProperty id | ForEach-Object { $_.ToLower() }
-    $blockedConnectors = $policy.connectorGroups[2].connectors  | Select-Object -ExpandProperty id | ForEach-Object { $_.ToLower() }
-
+    $businessConnectors = $policy.connectorGroups[0].connectors | Select-Object -ExpandProperty name 
+    $nonBusinessConnectors = $policy.connectorGroups[1].connectors  | Select-Object -ExpandProperty name 
+    $blockedConnectors = $policy.connectorGroups[2].connectors  | Select-Object -ExpandProperty name
     $affectedItems = [System.Collections.ArrayList]@()
 
-    
     function Add-AffectedItems($items, $appType) {
         $items | ForEach-Object {
             $item = $_
@@ -103,19 +101,26 @@ function global:Get-PowerAppsAffectedByPolicy {
             $blockAffectedCount = 0
             $blockedAffectedConnectors = [System.Collections.ArrayList]@()
             $groupCount = 0
+
+            $props = $_.Internal.properties
+
+            # Hack to find Http Connectors
+            if ($appType -eq "Flow" -and $props.definitionSummary.actions -match "Http") {
+                $props.connectionReferences | Add-Member -Name "HTTP" -MemberType NoteProperty -Value $(New-Object -TypeName psobject -Property @{ DisplayName = "HTTP" })
+            }
     
-            $_.Internal.properties.connectionReferences.PSObject.Properties `
+            $props.connectionReferences.PSObject.Properties `
             | Select-Object -ExpandProperty value `
             | ForEach-Object { 
-                if ($businessConnectors.Contains($_.id.ToLower())) {
+                if ($businessConnectors.Contains($_.DisplayName)) {
                     $businessAffectedCount += 1
                     [void]$businessAffectedConnectors.Add($_)
                 }
-                if ($nonBusinessConnectors.Contains($_.id.ToLower())) {
+                if ($nonBusinessConnectors.Contains($_.DisplayName)) {
                     $nonBusinessAffectedCount += 1
                     [void]$nonBusinessAffectedConnectors.Add($_)
                 }
-                if ($blockedConnectors.Contains($_.id.ToLower())) {
+                if ($blockedConnectors.Contains($_.DisplayName)) {
                     $blockAffectedCount += 1
                     [void]$blockedAffectedConnectors.Add($_)
                 }
@@ -130,16 +135,15 @@ function global:Get-PowerAppsAffectedByPolicy {
                 $groupCount++
             }
 
-            $props = $_.Internal.properties
             $appItem = $item | Select-Object `
                 DisplayName,
                 AppName,
                 @{ n = 'AppType'; e = { $appType } }, 
                 @{ n = 'Owner'; e = { if ($null -ne $props.owner) { $props.owner.Email } else { Get-AzureADUser -ObjectId $props.creator.userId | Select-Object -ExpandProperty Mail } } }, 
                 @{ n = 'BusinessCount'; e = { $businessAffectedCount } }, 
-                @{ n = 'BusinessConnectors'; e = { ( $businessAffectedConnectors | Select-Object -ExpandProperty displayName ) -join ','  } }, 
+                @{ n = 'BusinessConnectors'; e = { ( $businessAffectedConnectors | Select-Object -ExpandProperty displayName ) -join ',' } }, 
                 @{ n = 'NonBusinessCount'; e = { $nonBusinessAffectedCount } }, 
-                @{ n = 'NonBusinessConnectors'; e = { ( $nonBusinessAffectedConnectors | Select-Object -ExpandProperty displayName ) -join ','  } }, 
+                @{ n = 'NonBusinessConnectors'; e = { ( $nonBusinessAffectedConnectors | Select-Object -ExpandProperty displayName ) -join ',' } }, 
                 @{ n = 'BlockedCount'; e = { $blockAffectedCount } }, 
                 @{ n = 'BlockedConnectors'; e = { ( $blockedAffectedConnectors | Select-Object -ExpandProperty displayName ) -join ',' } }, 
                 @{ n = 'Affected'; e = { 
@@ -149,16 +153,13 @@ function global:Get-PowerAppsAffectedByPolicy {
         }
     }
 
-
-    $flows = Get-AdminFlow -EnvironmentName $environmentName | ForEach-Object { get-flow -FlowName $_.FlowName }
+    $flows = Get-AdminFlow -EnvironmentName $environmentName | ForEach-Object { Get-AdminFlow -FlowName $_.FlowName }
     $flows | Add-Member -MemberType AliasProperty -Name AppName -Value FlowName
 
     Add-AffectedItems $flows "Flow"
 
-    $apps = Get-AdminPowerApp $_.EnvironmentName -eq $environmentName | Get-PowerApp
+    $apps = Get-AdminPowerApp -EnvironmentName $environmentName | Get-AdminPowerApp
     Add-AffectedItems $apps "App"
-
-    # Write-Output affectedItems | Format-Table
 
     return $affectedItems
     
