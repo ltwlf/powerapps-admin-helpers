@@ -14,13 +14,20 @@ Helps to verify which PowerApps and Flows would be affected by a DLP policy. The
 .EXAMPLE
   Connect-AzureAD
   Add-PowerAppsAccount
+
+  # load the script
+  . ./Ltwlf.PowerApps.ps1
   
   $defaultEnv = Get-AdminPowerAppEnvironment | ? { $_.IsDefault -eq $true }
   # import policy  
   $policy = Import-DlpPolicy -path ./default-policy.json
-  # or load online DLP policy
-  # $policy = GetDlpPolicy -PolicyName 9029b241-055a-4242-8262-5700504c6171#
 
+  ## or load online DLP policy
+  # $policy = Get-DlpPolicy | ?{ $_.value.displayName -eq "Default" } | Select -ExpandProperty value
+  ## Add custom connectors to policy (Confidential, General, Blocked)
+  # $policy = Add-DlpCustomConnectors -policy $policy -groupName "Blocked"
+
+  ## simulate policy
   Get-PowerAppsAffectedByPolicy -Policy $policy -EnvironmentName  $defaultEnv.EnvironmentName
 
 #>
@@ -32,10 +39,6 @@ if (!(Get-Module -Name "AzureAD")) {
 if (!(Get-Module -Name "Microsoft.PowerApps.Administration.PowerShell")) {
     Install-Module -Name Microsoft.PowerApps.Administration.PowerShell -Scope CurrentUser
 }
-if (!(Get-Module -Name "Microsoft.PowerApps.PowerShell")) {
-    Install-Module -Name Microsoft.PowerApps.PowerShell -AllowClobber -Scope CurrentUser
-}
-
 
 function global:Export-DlpPolicy {
     param (
@@ -58,14 +61,15 @@ function global:Import-DlpPolicy {
     return $policy
 }
 
-function global:Add-PowerAppsCustomConnectorsToBlocked {
+function global:Add-DlpCustomConnectors{
     param (
-        [Parameter(Mandatory = $true)][PSObject]$policy
+        [Parameter(Mandatory = $true)][PSObject]$policy,
+        [Parameter(Mandatory = $true)][string]$groupName
     )
     $custom_connectors = Get-AdminPowerAppConnector | Select-Object @{n = 'id'; e = { $_.ConnectorId } }, @{n = 'name'; e = { $_.ConnectorName } }, @{n = 'type'; e = { 'Microsoft.PowerApps/apis' } }
 
-    # block all custom connectors
-    $policy.connectorGroups[2].connectors = $policy.connectorGroups[2].connectors + $custom_connectors 
+    $group = $policy.connectorGroups | Where-Object{ $_.classification -eq $groupName} 
+    $group.connectors = $group.connectors + $custom_connectors 
 
     return $policy
 }
@@ -85,7 +89,6 @@ function global:Get-PowerAppsAffectedByPolicy {
     }
 
     # get custom connectors
-
     $businessConnectors = $policy.connectorGroups[0].connectors | Select-Object -ExpandProperty name 
     $nonBusinessConnectors = $policy.connectorGroups[1].connectors  | Select-Object -ExpandProperty name 
     $blockedConnectors = $policy.connectorGroups[2].connectors  | Select-Object -ExpandProperty name
