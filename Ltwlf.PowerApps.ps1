@@ -9,7 +9,8 @@ Helps to verify which PowerApps and Flows would be affected by a DLP policy. The
   Version:        0.1
   Author:         Christian Glessner
   Creation Date:  2020-07-05
-  Blog: https://blog.leitwolf.io
+  Blog:           https://blog.leitwolf.io
+  Twitter:        @cglessner
   
 .EXAMPLE
   Connect-AzureAD
